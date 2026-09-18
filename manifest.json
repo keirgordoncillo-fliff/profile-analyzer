@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "Fliff IMS — Player Profile Analyzer",
+  "version": "3.3.0",
+  "description": "Playtech IMS-style player reporting for the Fliff admin: summary, player details, transactions, deposits, withdrawals, game stats, bonuses and risk flags with full filtering and export.",
+  "permissions": [
+    "sidePanel",
+    "tabs",
+    "contextMenus",
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://fw10.app.corp.getfliff.com/*"
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "action": {
+    "default_title": "Fliff IMS Player Analyzer",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "commands": {
+    "open-report": {
+      "suggested_key": {
+        "default": "Alt+Shift+F"
+      },
+      "description": "Open the full IMS report for the current player"
+    }
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'"
+  }
+}

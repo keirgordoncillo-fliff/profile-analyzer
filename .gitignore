@@ -1,0 +1,15 @@
+# Test-only dependency: npm install --no-save jsdom
+node_modules/
+package-lock.json
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs & scratch
+*.log
+npm-debug.log*
+tmp/

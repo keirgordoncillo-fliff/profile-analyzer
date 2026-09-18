@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <title>Fliff Player Analyzer</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/icon16.png">
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+
+<header class="sp-head">
+  <div class="brand">
+    <span class="brand-mark">F</span>
+    <span>Player Analyzer</span>
+  </div>
+  <button type="button" class="btn btn-sm btn-ghost" id="themeBtn" title="Toggle light / dark">◐</button>
+</header>
+
+<div class="sp-body">
+  <form id="lookupForm" class="sp-lookup" autocomplete="off">
+    <input type="search" id="userIdInput" placeholder="Player / User ID" aria-label="Player ID" required>
+    <button type="submit" class="btn btn-primary" id="queryBtn">Look Up</button>
+  </form>
+
+  <div class="sp-status hidden" id="status"></div>
+
+  <!-- Quick profile -->
+  <section class="card hidden" id="profileCard">
+    <div class="card-head">
+      <h3 id="pName">—</h3>
+      <span class="card-sub" id="pId"></span>
+    </div>
+    <div class="card-body">
+      <div class="sp-kpis" id="pKpis"></div>
+      <table class="tbl kv sp-kv" id="pMeta"></table>
+    </div>
+  </section>
+
+  <!-- Quick ledger snapshot -->
+  <section class="card hidden" id="txCard">
+    <div class="card-head">
+      <h3>Ledger Snapshot</h3>
+      <span class="card-sub" id="txMeta"></span>
+    </div>
+    <div class="card-body">
+      <div class="sp-kpis" id="txKpis"></div>
+      <h4 class="sp-h4">By Category</h4>
+      <table class="tbl sp-cat" id="catTable"></table>
+    </div>
+  </section>
+
+  <div class="sp-actions">
+    <button type="button" class="btn btn-primary block hidden" id="fullReportBtn">Open Full IMS Report ↗</button>
+    <button type="button" class="btn block hidden" id="loadTxBtn">Analyze Transactions</button>
+    <button type="button" class="btn block hidden" id="adminBtn">Open in Django Admin ↗</button>
+  </div>
+
+  <section class="card sp-empty" id="emptyCard">
+    <div class="card-body">
+      <p><b>Quick lookup</b> — enter a player ID for an instant profile and ledger snapshot.</p>
+      <p>For the full tabbed report with deposits, withdrawals, game stats, filters and export, open the IMS report in a tab.</p>
+      <button type="button" class="btn btn-sm block" id="openBlankReport">Open IMS Report</button>
+    </div>
+  </section>
+</div>
+
+<footer class="sp-foot">
+  <span id="footHost">fw10 · shard 32</span>
+  <span class="spacer"></span>
+  <span id="footState">Idle</span>
+</footer>
+
+<script type="module" src="sidepanel.js"></script>
+</body>
+</html>

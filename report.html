@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <title>Fliff IMS — Player Report</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/icon16.png">
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="report.css">
+</head>
+<body>
+
+<!-- ============================ TOP BAR ============================ -->
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">F</span>
+    <span class="brand-text">Fliff <em>IMS</em></span>
+    <span class="env-tag" title="Environment / shard">FW10 · SHARD 32</span>
+  </div>
+
+  <form class="lookup" id="lookupForm" autocomplete="off">
+    <div class="lookup-field">
+      <svg viewBox="0 0 16 16" class="ico" aria-hidden="true"><path d="M11 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Zm-.7 4.3a5.5 5.5 0 1 1 1.4-1.4l3 3-1.4 1.4-3-3Z"/></svg>
+      <input type="search" id="userIdInput" placeholder="Player / User ID (e.g. 3322610)" aria-label="Player ID" required>
+    </div>
+    <button type="submit" class="btn btn-primary" id="loadBtn">Load Report</button>
+    <button type="button" class="btn btn-ghost hidden" id="cancelBtn">Cancel</button>
+    <!-- Manual CSV path: works regardless of whether the server-side export
+         action can be reached, so a blocked export never blocks the analysis. -->
+    <button type="button" class="btn btn-ghost" id="csvImportBtn"
+            title="Load a transaction CSV exported from Django admin — use this if the automatic export is blocked">Load CSV…</button>
+    <input type="file" id="csvImportInput" accept=".csv,text/csv" class="hidden" aria-label="Transaction CSV file">
+  </form>
+
+  <div class="topbar-right">
+    <div class="recent-wrap">
+      <button type="button" class="btn btn-sm btn-ghost" id="recentBtn" aria-haspopup="true">Recent ▾</button>
+      <ul class="dropdown hidden" id="recentList"></ul>
+    </div>
+    <button type="button" class="btn btn-sm btn-ghost" id="themeBtn" title="Toggle light / dark">◐</button>
+    <button type="button" class="btn btn-sm btn-ghost" id="printBtn" title="Print / save as PDF">⎙</button>
+  </div>
+</header>
+
+<!-- ============================ PROGRESS ============================ -->
+<div class="progress-bar hidden" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+
+<div class="banner hidden" id="banner" role="status"></div>
+
+<!-- ============================ SHELL ============================ -->
+<div class="shell">
+
+  <!-- ---------- LEFT NAV RAIL ---------- -->
+  <nav class="rail" id="rail" aria-label="Report sections">
+    <div class="rail-player" id="railPlayer">
+      <div class="rp-avatar" id="rpAvatar">—</div>
+      <div class="rp-meta">
+        <div class="rp-name" id="rpName">No player loaded</div>
+        <div class="rp-id" id="rpId">Enter an ID above</div>
+      </div>
+    </div>
+
+    <ul class="rail-nav">
+      <li><button class="rail-item active" data-tab="summary"><span class="ri-ico">▦</span> Summary</button></li>
+      <li><button class="rail-item" data-tab="details"><span class="ri-ico">◉</span> Player Details</button></li>
+      <li><button class="rail-item" data-tab="transactions"><span class="ri-ico">☰</span> Transactions <span class="ri-count" id="cntTx"></span></button></li>
+      <li><button class="rail-item" data-tab="deposits"><span class="ri-ico">↓</span> Deposits <span class="ri-count" id="cntDep"></span></button></li>
+      <li><button class="rail-item" data-tab="withdrawals"><span class="ri-ico">↑</span> Withdrawals <span class="ri-count" id="cntWdl"></span></button></li>
+      <li><button class="rail-item" data-tab="gamestats"><span class="ri-ico">◆</span> Game Stats</button></li>
+      <li><button class="rail-item" data-tab="bonuses"><span class="ri-ico">✦</span> Bonuses &amp; XP <span class="ri-count" id="cntBon"></span></button></li>
+      <li><button class="rail-item" data-tab="wallet"><span class="ri-ico">◍</span> Wallet &amp; Ledger</button></li>
+      <li><button class="rail-item" data-tab="risk"><span class="ri-ico">⚠</span> Risk &amp; Flags <span class="ri-count" id="cntRisk"></span></button></li>
+      <li><button class="rail-item" data-tab="raw"><span class="ri-ico">{}</span> Raw Data</button></li>
+    </ul>
+
+    <div class="rail-foot">
+      <div class="rf-row"><span>Source</span><b id="railMethod">—</b></div>
+      <div class="rf-row"><span>Fetched</span><b id="railFetched">—</b></div>
+      <a class="rf-link" id="railAdminLink" target="_blank" rel="noopener">Open in Django admin ↗</a>
+    </div>
+  </nav>
+
+  <!-- ---------- MAIN ---------- -->
+  <main class="main" id="main">
+
+    <!-- FILTER STRIP -->
+    <section class="filters card" id="filters">
+      <div class="filter-row">
+        <div class="fg quick-range">
+          <label>Period</label>
+          <div class="seg" id="rangeSeg">
+            <button type="button" data-range="7">7D</button>
+            <button type="button" data-range="30">30D</button>
+            <button type="button" data-range="90">90D</button>
+            <button type="button" data-range="365">1Y</button>
+            <button type="button" data-range="all" class="active">All</button>
+          </div>
+        </div>
+        <div class="fg"><label for="fFrom">From</label><input type="date" id="fFrom"></div>
+        <div class="fg"><label for="fTo">To</label><input type="date" id="fTo"></div>
+        <div class="fg grow"><label for="fSearch">Search</label><input type="search" id="fSearch" placeholder="ID, history, reason/pick id…"></div>
+        <div class="fg"><label for="fCategory">Category</label><select id="fCategory"><option value="">All categories</option></select></div>
+        <div class="fg"><label for="fType">Type code</label><select id="fType"><option value="">All types</option></select></div>
+        <div class="fg"><label for="fCurrency">Currency</label><select id="fCurrency"><option value="">All currencies</option></select></div>
+        <div class="fg sm"><label for="fMin">Min $</label><input type="number" id="fMin" step="0.01" placeholder="0"></div>
+        <div class="fg sm"><label for="fMax">Max $</label><input type="number" id="fMax" step="0.01" placeholder="∞"></div>
+        <div class="fg actions">
+          <button type="button" class="btn btn-sm" id="resetFilters">Reset</button>
+        </div>
+      </div>
+      <div class="filter-meta">
+        <span id="filterSummary" class="fm-text">No data loaded</span>
+        <span class="fm-spacer"></span>
+        <span class="fm-hint">Min/Max $ applies to cash-valued transactions only</span>
+        <button type="button" class="btn btn-sm" id="exportCsv">⤓ CSV</button>
+        <button type="button" class="btn btn-sm" id="exportJson">⤓ JSON</button>
+      </div>
+    </section>
+
+    <!-- EMPTY STATE -->
+    <section class="empty-state" id="emptyState">
+      <div class="es-mark"><span class="brand-mark">F</span></div>
+      <h2>Player Profile Analyzer</h2>
+      <p>Enter a player ID to build a full IMS-style report: financial summary, KYC and account details,
+         a complete transaction ledger, deposit and withdrawal analysis, cash and token wagering performance,
+         bonus/XP activity and risk flags.</p>
+      <ul class="es-hints">
+        <li><b>Cash and tokens, kept separate</b> — real money is never blended with play-money coins/tokens in a total.</li>
+        <li><b>Type-code driven</b> — every category comes from the ledger's actual transaction type, not guessed text.</li>
+        <li><b>Session-based</b> — uses your existing Django admin login. No credentials stored.</li>
+      </ul>
+    </section>
+
+    <!-- ==================== TAB: SUMMARY ==================== -->
+    <section class="tab hidden" data-panel="summary">
+      <div class="kpi-grid" id="kpiGrid"></div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>Cash Flow Composition</h3><span class="card-sub">Real-money categories only</span></div>
+          <div class="card-body" id="chartComposition"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Activity by Category</h3><span class="card-sub">Transaction count, all currencies</span></div>
+          <div class="card-body" id="chartCategories"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>Cash Timeline</h3>
+          <div class="head-tools">
+            <div class="seg sm" id="trendGrain">
+              <button type="button" data-grain="day" class="active">Daily</button>
+              <button type="button" data-grain="month">Monthly</button>
+            </div>
+          </div>
+        </div>
+        <div class="card-body" id="chartTimeline"></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>Lifetime vs Period</h3><span class="card-sub">Profile record vs filtered ledger</span></div>
+          <div class="card-body pad-0"><table class="tbl" id="tblReconcile"></table></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Top Transaction Types</h3><span class="card-sub">By count</span></div>
+          <div class="card-body" id="chartTopTypes"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB: PLAYER DETAILS ==================== -->
+    <section class="tab hidden" data-panel="details">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>Identity</h3></div>
+          <div class="card-body pad-0"><table class="tbl kv" id="tblIdentity"></table></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Account Status</h3></div>
+          <div class="card-body pad-0"><table class="tbl kv" id="tblAccount"></table></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Financial Position (Profile Record)</h3><span class="card-sub">As reported by the profile page</span></div>
+        <div class="card-body pad-0"><table class="tbl kv" id="tblFinancial"></table></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <h3>All Profile Fields</h3>
+          <div class="head-tools"><input type="search" id="profileFieldSearch" placeholder="Filter fields…" class="inline-search"></div>
+        </div>
+        <div class="card-body pad-0 scroll-y"><table class="tbl kv" id="tblAllProfile"></table></div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB: TRANSACTIONS ==================== -->
+    <section class="tab hidden" data-panel="transactions">
+      <div class="strip" id="txStrip"></div>
+      <div class="card">
+        <div class="card-head">
+          <h3>Transaction Ledger</h3>
+          <div class="head-tools">
+            <label class="chk"><input type="checkbox" id="txShowRaw"> Show raw columns</label>
+            <select id="txPageSize" class="inline-select">
+              <option value="50">50 / page</option>
+              <option value="100" selected>100 / page</option>
+              <option value="250">250 / page</option>
+              <option value="1000">1000 / page</option>
+            </select>
+          </div>
+        </div>
+        <div class="card-body pad-0 scroll-x"><table class="tbl" id="tblTx"></table></div>
+        <div class="pager" id="txPager"></div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB: DEPOSITS ==================== -->
+    <section class="tab hidden" data-panel="deposits">
+      <div class="kpi-grid slim" id="depKpis"></div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>Deposit Volume Over Time</h3></div>
+          <div class="card-body" id="chartDepTrend"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Deposit Size Distribution</h3></div>
+          <div class="card-body" id="chartDepBuckets"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Deposit Records</h3><span class="card-sub" id="depCount"></span></div>
+        <div class="card-body pad-0 scroll-x"><table class="tbl" id="tblDep"></table></div>
+        <div class="pager" id="depPager"></div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB: WITHDRAWALS ==================== -->
+    <section class="tab hidden" data-panel="withdrawals">
+      <div class="kpi-grid slim" id="wdlKpis"></div>
+      <div class="card">
+        <div class="card-head"><h3>Request → Paid Funnel</h3><span class="card-sub">Cash locked on request vs cash actually paid out</span></div>
+        <div class="card-body" id="wdlFunnel"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Withdrawal Volume Over Time</h3></div>
+        <div class="card-body" id="chartWdlTrend"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Requests, Paired with Resolution</h3><span class="card-sub">Linked by request id, or by same amount + timing when no usable id exists</span></div>
+        <div class="card-body pad-0 scroll-x"><table class="tbl" id="tblWdlPairs"></table></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>All Withdrawal Records</h3><span class="card-sub" id="wdlCount"></span></div>
+        <div class="card-body pad-0 scroll-x"><table class="tbl" id="tblWdl"></table></div>
+        <div class="pager" id="wdlPager"></div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB: GAME STATS ==================== -->
+    <section class="tab hidden" data-panel="gamestats">
+      <div class="currency-split">
+        <div class="cs-block cash">
+          <div class="cs-head"><span class="cs-tag cash">$ CASH PICKS</span><span class="cs-sub">Real-money-backed Fliff Cash</span></div>
+          <div class="kpi-grid slim" id="cashGameKpis"></div>
+        </div>
+        <div class="cs-block token">
+          <div class="cs-head"><span class="cs-tag token">◆ TOKEN PICKS</span><span class="cs-sub">Play-money tokens / qtokens — not redeemable</span></div>
+          <div class="kpi-grid slim" id="tokenGameKpis"></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>Cash: Wagered vs Won</h3></div>
+          <div class="card-body" id="chartCashWagerTrend"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Tokens: Wagered vs Won</h3></div>
+          <div class="card-body" id="chartTokenWagerTrend"></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>Settlement Outcomes</h3><span class="card-sub">Win / Loss / Push / No Action, all currencies</span></div>
+          <div class="card-body" id="chartOutcomes"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Play Activity Heatmap</h3><span class="card-sub">Transactions by weekday &amp; hour (local time)</span></div>
+          <div class="card-body" id="chartHeatmap"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Settlement Records</h3><span class="card-sub">Wins, losses, pushes and no-action, cash and token</span></div>
+        <div class="card-body pad-0 scroll-x"><table class="tbl" id="tblSettle"></table></div>
+        <div class="pager" id="settlePager"></div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB: BONUSES & XP ==================== -->
+    <section class="tab hidden" data-panel="bonuses">
+      <div class="kpi-grid slim" id="bonusKpis"></div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>Bonus Claims Over Time</h3></div>
+          <div class="card-body" id="chartBonusTrend"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>XP Grants by Source</h3></div>
+          <div class="card-body" id="chartXpSources"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <h3>Deposit-Match Bonuses</h3>
+          <span class="card-sub" id="depBonusCount"></span>
+        </div>
+        <div class="card-body" style="padding: 4px 14px 0">
+          <p class="muted" style="margin: 2px 0 10px; font-size: var(--fs-sm)">
+            Bundled into the deposit's own transaction (no separate ledger entry) — parsed from
+            <code>serialized_details</code>. Included in Bonus Cash (Total) above; shown here on its own too since
+            it's otherwise invisible everywhere else in the ledger.
+          </p>
+        </div>
+        <div class="card-body pad-0 scroll-x"><table class="tbl" id="tblDepositBonus"></table></div>
+        <div class="pager" id="depBonusPager"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Bonus, XP &amp; Redemption Records</h3><span class="card-sub" id="bonCount"></span></div>
+        <div class="card-body pad-0 scroll-x"><table class="tbl" id="tblBon"></table></div>
+        <div class="pager" id="bonPager"></div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB: WALLET ==================== -->
+    <section class="tab hidden" data-panel="wallet">
+      <div class="card">
+        <div class="card-head"><h3>Currency Ledger</h3><span class="card-sub">Every currency column with activity in the filtered period, across all categories</span></div>
+        <div class="card-body pad-0"><table class="tbl" id="tblCodes"></table></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>Net Flow — Cash Currencies</h3></div>
+          <div class="card-body" id="chartCashFlow"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Net Flow — Token Currencies</h3></div>
+          <div class="card-body" id="chartTokenFlow"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB: RISK ==================== -->
+    <section class="tab hidden" data-panel="risk">
+      <div class="card confidence-notice">
+        <div class="card-body">
+          <strong>Data confidence.</strong> Every figure and flag on this report is
+          <span class="badge">Authoritative</span> (a confirmed mapping), <span class="badge warn">Inferred</span>
+          (a heuristic fallback — see "Superstars-Wallet Inferred Categories" below), or <span class="badge neu">Unknown</span>
+          (an unmapped type code — see "Unclassified Type Codes" below). <u>Inferred and Unknown values must not be used,
+          on their own, as grounds for an account suspension, fraud determination, compliance conclusion, financial
+          reconciliation, or any automated support action.</u> This tool is read-only and does not take any such action
+          itself — treat lower-confidence figures as a lead to corroborate against authoritative source data, not a finding.
+          <span id="confidenceSummary" class="confidence-summary"></span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Automated Review Flags</h3><span class="card-sub">Heuristic indicators — not a compliance determination</span></div>
+        <div class="card-body" id="riskList"></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>Reversals</h3><span class="card-sub">Type 4052 — corrected settlements</span></div>
+          <div class="card-body pad-0 scroll-y"><table class="tbl" id="tblReversals"></table></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Manual Admin Adjustments</h3><span class="card-sub">Type 4119 — created directly by an admin account</span></div>
+          <div class="card-body pad-0 scroll-y"><table class="tbl" id="tblManual"></table></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Sign Anomalies</h3><span class="card-sub">Deposit-type records with an unexpected negative amount</span></div>
+        <div class="card-body" id="anomalyList"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Unclassified Type Codes</h3><span class="card-sub">Type codes with no category mapping yet</span></div>
+        <div class="card-body pad-0"><table class="tbl" id="tblUnmapped"></table></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Superstars-Wallet Inferred Categories</h3><span class="card-sub">Categorized by currency pattern, not a confirmed type-code mapping — review before trusting fully</span></div>
+        <div class="card-body pad-0"><table class="tbl" id="tblInferredFantasy"></table></div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB: RAW ==================== -->
+    <section class="tab hidden" data-panel="raw">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>Currency Schema</h3><span class="card-sub" id="currencySchemaSub"></span></div>
+          <div class="card-body pad-0 scroll-y"><table class="tbl" id="tblCurrencySchema"></table></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Type Code Schema</h3><span class="card-sub" id="typeSchemaSub"></span></div>
+          <div class="card-body pad-0 scroll-y"><table class="tbl" id="tblTypeSchema"></table></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <h3>Raw Records</h3>
+          <div class="head-tools"><span class="card-sub" id="rawSub"></span></div>
+        </div>
+        <div class="card-body pad-0 scroll-x"><table class="tbl" id="tblRaw"></table></div>
+        <div class="pager" id="rawPager"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script type="module" src="report.js"></script>
+</body>
+</html>
